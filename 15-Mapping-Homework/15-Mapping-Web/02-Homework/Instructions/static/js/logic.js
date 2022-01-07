@@ -3,86 +3,94 @@
 //Source choice - past 30 days
 var url = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson"
 
-//create map
-var map = L.map("map", {
-    center: [50, -50],
-    zoom: 3
+function createMap(earthquakes) {
+  // Create the base layers.
+  var street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  })
+
+  var topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
   });
 
-//create layer
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  }).addTo(map);
+// Create a baseMaps object.
+  var baseMaps = {
+    "Street Map": street,
+    "Topographic Map": topo
+  };
 
-//use d3 to pull data from GEOJSON
-d3.json(url).then(function(data){
-    console.log(data)
+// Create an overlay object to hold our overlay.
+  var overlayMaps = {
+    Earthquakes: earthquakes
+  };
 
-    //pull map data for markers
-    for (var i = 0; i < data.features.length; i++){
-        var quake = data.features[i];
-        var location = [quake.geometry.coordinates[1], quake.geometry.coordinates[0]];
-        var depth = [quake.geometry.coordinates[2]];
-        var color = '';
-        var qdate = new Date(quake.properties.time)
-        
-        //determine color based on depth
-        if (depth >= 5000){
-            color = "#ff5f65"
-        }
+// Create our map, giving it the streetmap and earthquakes layers to display on load.
+  var myMap = L.map("map", {
+    center: [
+      50, -50
+    ],
+    zoom: 2,
+    layers: [street, earthquakes]
+  });
 
-        else if (depth >= 2500){
-            color = "#6d605f"
-        }
 
-        else if (depth >= 1500){
-            color = "#9a8786"
-        }
-
-        else if (depth >= 1000){
-            color = "#f5a29c"
-        }
-
-        else if (depth >= 500){
-            color = "#f7cdca"
-        }
-
-        else {
-            color = "#faedec"
-        }
-
-      //determine marker size based on magnitude 
-
-      function markerSize(magnitude) {
-        return magnitude * 3;
-    }
-
-        //create info pop-up when clicking on marker
-        L.circle(location, {
-            opacity: .5,
-            fillOpacity: 0.5,
-            weight: 1,
-            color: 'red',
-            fillColor: color,
-            radius: 10 * quake.properties.mag
-        }).bindPopup("<h4> Date of Earthquake:" + 
-        qdate + "</h4><h5>Magnitude: " + 
-        quake.properties.mag + "</h5><h6>Location: " 
-        + quake.properties.place + "</h6><h7>Depth: " 
-        + depth + "</h7>").addTo(map)
-    }
-
-    //create key
-    var legend = L.control({position: 'topleft'});
-
-    legend.onAdd = function (map) {
-
-    var div = L.DomUtil.create('div', 'info legend'),
-        depths = [5000, 2500, 1500, 1000, 500, 100]
-
-    return div;
+// / Perform a GET request to the query URL
+d3.json(url).then(function (data) {
+  console.log(data)
+  function styleInfo(feature) {
+    return {
+      opacity: 1,
+      fillOpacity: 1,
+      fillColor: getColor(feature.properties.depth),
+      color: "red",
+      radius: getRadius(feature.properties.mag),
+      stroke: true,
+      weight: 0.5
     };
 
-    legend.addTo(map);
+  function getColor(depth) {
+    switch (true) {
+    case depth > 5000:
+      return " #f24235 ";
+    case depth > 3500:
+      return "#e76f66";
+    case depth > 1500:
+      return " #ef8d86"; 
+    case depth > 500:
+      return "#ee9e98";
+    case depth > 100:
+      return "#ebbdba";
+    default:
+      return "#e5c0be";
+    }
+  }
+function oMarker(magnitude) {
+    if (magnitude === 0) {
+      return 1;
+    }
+    return magnitude * 2;}
 
-});
+  }
+function createFeatures(earthquakeData) {
+
+// Define a function that we want to run once for each feature in the features array.
+// Give each feature a popup that describes the place and time of the earthquake.
+  function onEachFeature(feature, layer) {
+    layer.bindPopup(`<h3>${feature.properties.place}</h3><hr><p>${new Date(feature.properties.time)}</p>`);
+  }
+  
+// Create a GeoJSON layer that contains the features array on the earthquakeData object.
+// Run the onEachFeature function once for each piece of data in the array.
+  var earthquakes = L.geoJSON(earthquakeData, {
+    onEachFeature: onEachFeature
+  });
+
+// Create a layer control.
+// Pass it our baseMaps and overlayMaps.
+// Add the layer control to the map.
+  L.control.layers(baseMaps, overlayMaps, {
+    collapsed: false
+  }).addTo(myMap);
+}
+})
+}
